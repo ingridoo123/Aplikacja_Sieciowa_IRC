@@ -20,6 +20,7 @@ class IRCRepositoryImpl @Inject constructor(
     override val channels: StateFlow<List<Channel>> = socketClient.channels
     override val currentNickname: StateFlow<String?> = socketClient.currentNickname
     override val serverResponses: StateFlow<List<String>> = socketClient.serverResponses
+    override val channelUsers: StateFlow<Map<String, List<String>>> = socketClient.channelUsers
 
     override suspend fun connect(host: String, port: Int) {
         socketClient.connect(host, port)

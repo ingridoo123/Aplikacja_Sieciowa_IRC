@@ -1,163 +1,227 @@
 package com.example.aplikacja_sieciowa.presentation.chat
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarColors
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aplikacja_sieciowa.R
 import com.example.aplikacja_sieciowa.data.model.Channel
+import com.example.aplikacja_sieciowa.data.model.ConversationType
 import com.example.aplikacja_sieciowa.data.model.Message
-import com.example.aplikacja_sieciowa.ui.theme.DiscordBlurple
-import com.example.aplikacja_sieciowa.ui.theme.DiscordChannelSelected
-import com.example.aplikacja_sieciowa.ui.theme.DiscordDarkBackground
-import com.example.aplikacja_sieciowa.ui.theme.DiscordDarkerBackground
-import com.example.aplikacja_sieciowa.ui.theme.DiscordDarkestBackground
-import com.example.aplikacja_sieciowa.ui.theme.DiscordRed
-import com.example.aplikacja_sieciowa.ui.theme.DiscordTextMuted
-import com.example.aplikacja_sieciowa.ui.theme.DiscordTextPrimary
-import com.example.aplikacja_sieciowa.ui.theme.DiscordTextSecondary
-import com.example.aplikacja_sieciowa.ui.theme.DiscordYellow
+import com.example.aplikacja_sieciowa.ui.theme.*
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
     onDisconnect: () -> Unit,
     viewModel: ChatViewModel = hiltViewModel()
 ) {
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val leftDrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val rightDrawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
     val channels by viewModel.channels.collectAsState()
-    val currentChannel by viewModel.currentChannel.collectAsState()
-    val messages by viewModel.messages.collectAsState()
+    val currentConversation by viewModel.currentConversation.collectAsState()
+    val messages by viewModel.messagesForCurrentConversation.collectAsState()
     val messageText by viewModel.messageText.collectAsState()
     val currentNickname by viewModel.currentNickname.collectAsState()
+    val directMessages by viewModel.directMessageConversations.collectAsState()
+    val currentChannelUsers by viewModel.currentChannelUsers.collectAsState()
 
 
     ModalNavigationDrawer(
-        drawerState = drawerState,
+        drawerState = leftDrawerState,
         drawerContent = {
-            ChannelsDrawer(
+            LeftDrawer(
                 channels = channels,
-                currentChannel = currentChannel,
+                directMessages = directMessages,
+                currentConversation = currentConversation,
                 currentNickname = currentNickname,
                 onChannelClick = { channel ->
                     viewModel.joinChannel(channel)
-                    scope.launch { drawerState.close() }
+                    scope.launch { leftDrawerState.close() }
                 },
-                onRefresh = {viewModel.refreshChannel()},
+                onDMClick = { username ->
+                    viewModel.openDirectMessage(username)
+                    scope.launch { leftDrawerState.close() }
+                },
+                onCreateChannel = { channelName ->
+                    viewModel.createAndJoinChannel(channelName)
+                    scope.launch { leftDrawerState.close() }
+                },
+                onRefresh = viewModel::refreshChannels,
                 onDisconnect = {
                     viewModel.disconnect(onDisconnect)
-                },
-                onCreateChannel = {channelName ->
-                    viewModel.createAndJoinChannel(channelName)
-                    scope.launch { drawerState.close() }
                 }
             )
-        }
+        },
+        gesturesEnabled = true
     ) {
-        Scaffold(
-            topBar = {
-                ChatTopBar(
-                    currentChannel = currentChannel,
-                    onMenuClick = {
-                        scope.launch { drawerState.open() }
-                    },
-                    onUsersClick = {
-                        // TODO: Right drawer for users
-                    }
-                )
-            },
-            containerColor = DiscordDarkBackground
-        ) { padding ->
-            if(currentChannel == null) {
-                NoChannelSelected(
-                    modifier = Modifier.padding(padding),
-                    onOpenChannels = {
-                        scope.launch { drawerState.open() }
-                    }
-                )
-            } else {
-                ChatContent(
-                    messages = messages,
-                    messageText = messageText,
-                    onMessageTextChange = {viewModel.updateMessageText(it)},
-                    onSendMessage = { viewModel.sendMessage() },
-                    modifier = Modifier.padding(padding)
-                )
-            }
 
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            ModalNavigationDrawer(
+                drawerState = rightDrawerState,
+                drawerContent = {
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        RightDrawer(
+                            users = currentChannelUsers,
+                            currentConversation = currentConversation,
+                            currentNickname = currentNickname,
+                            onUserClick = { username ->
+                                viewModel.openDirectMessage(username)
+                                scope.launch { rightDrawerState.close() }
+                            },
+                            onRefresh = viewModel::refreshUsers
+                        )
+                    }
+                },
+                gesturesEnabled = currentConversation is ConversationType.ChannelConversation,
+                modifier = Modifier.fillMaxSize()
+            ) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    Scaffold(
+                        topBar = {
+                            ChatTopBar(
+                                currentConversation = currentConversation,
+                                onMenuClick = {
+                                    scope.launch { leftDrawerState.open() }
+                                },
+                                onUsersClick = {
+                                    scope.launch { rightDrawerState.open() }
+                                }
+                            )
+                        },
+                        containerColor = DiscordDarkBackground
+                    ) { padding ->
+                        if (currentConversation == null) {
+                            NoConversationSelected(
+                                modifier = Modifier.padding(padding),
+                                onOpenMenu = {
+                                    scope.launch { leftDrawerState.open() }
+                                }
+                            )
+                        } else {
+                            ChatContent(
+                                messages = messages,
+                                messageText = messageText,
+                                onMessageTextChange = viewModel::updateMessageText,
+                                onSendMessage = viewModel::sendMessage,
+                                currentNickname = currentNickname,
+                                modifier = Modifier.padding(padding)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
-
-
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ChatTopBar(
+    currentConversation: ConversationType?,
+    onMenuClick: () -> Unit,
+    onUsersClick: () -> Unit
+) {
+    TopAppBar(
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                when (currentConversation) {
+                    is ConversationType.ChannelConversation -> {
+                        Icon(
+                            painter = painterResource(id = R.drawable.hashtag),
+                            contentDescription = null,
+                            tint = DiscordTextMuted,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = currentConversation.channelName.removePrefix("#"),
+                            color = DiscordTextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    is ConversationType.DirectMessage -> {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(DiscordBlurple),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = currentConversation.username.firstOrNull()?.uppercase() ?: "?",
+                                color = DiscordTextPrimary,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = currentConversation.username,
+                            color = DiscordTextPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    null -> {
+                        Text(
+                            text = "Wybierz konwersację",
+                            color = DiscordTextMuted
+                        )
+                    }
+                }
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onMenuClick) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Menu",
+                    tint = DiscordTextPrimary
+                )
+            }
+        },
+        actions = {
+            if (currentConversation is ConversationType.ChannelConversation) {
+                IconButton(onClick = onUsersClick) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Użytkownicy",
+                        tint = DiscordTextPrimary
+                    )
+                }
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = DiscordDarkerBackground
+        )
+    )
+}
 
 @Composable
-fun NoChannelSelected(
+fun NoConversationSelected(
     modifier: Modifier = Modifier,
-    onOpenChannels: () -> Unit
+    onOpenMenu: () -> Unit
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
@@ -168,35 +232,33 @@ fun NoChannelSelected(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Icon(
-                painterResource(id = R.drawable.question_mark),
+                painter = painterResource(id = R.drawable.question_mark),
                 contentDescription = null,
                 tint = DiscordTextMuted,
                 modifier = Modifier.size(64.dp)
             )
             Text(
-                text = "Nie wybrano kanału",
+                text = "Nie wybrano konwersacji",
                 style = MaterialTheme.typography.headlineSmall,
                 color = DiscordTextPrimary,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Wybierz kanał z menu po lewej",
+                text = "Wybierz kanał lub rozpocznij DM",
                 style = MaterialTheme.typography.bodyMedium,
                 color = DiscordTextSecondary
             )
             Button(
-                onClick = onOpenChannels,
+                onClick = onOpenMenu,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = DiscordBlurple
                 )
             ) {
-                Text("Otwórz listę kanałów")
+                Text("Otwórz menu")
             }
         }
     }
 }
-
-
 
 @Composable
 fun ChatContent(
@@ -204,6 +266,7 @@ fun ChatContent(
     messageText: String,
     onMessageTextChange: (String) -> Unit,
     onSendMessage: () -> Unit,
+    currentNickname: String?,
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
@@ -219,22 +282,22 @@ fun ChatContent(
             .fillMaxSize()
             .background(DiscordDarkBackground)
     ) {
-        // Messages List
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            reverseLayout = false
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(messages) { message ->
-                MessageItem(message)
+                MessageItem(
+                    message = message,
+                    isOwnMessage = message.sender == currentNickname
+                )
             }
         }
 
-        // Message Input
         MessageInput(
             text = messageText,
             onTextChange = onMessageTextChange,
@@ -243,19 +306,26 @@ fun ChatContent(
     }
 }
 
-
 @Composable
-fun MessageItem(message: Message) {
+fun MessageItem(
+    message: Message,
+    isOwnMessage: Boolean
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.Start
     ) {
-        // Avatar
         Box(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(DiscordBlurple),
+                .background(
+                    when {
+                        message.sender == "SYSTEM" -> DiscordYellow
+                        isOwnMessage -> DiscordGreen
+                        else -> DiscordBlurple
+                    }
+                ),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -271,7 +341,11 @@ fun MessageItem(message: Message) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = message.sender,
-                    color = if (message.sender == "SYSTEM") DiscordYellow else DiscordTextPrimary,
+                    color = when {
+                        message.sender == "SYSTEM" -> DiscordYellow
+                        isOwnMessage -> DiscordGreen
+                        else -> DiscordTextPrimary
+                    },
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.bodyMedium
                 )
@@ -282,6 +356,15 @@ fun MessageItem(message: Message) {
                     color = DiscordTextMuted,
                     style = MaterialTheme.typography.bodySmall
                 )
+                if (message.isPrivate) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "DM",
+                        color = DiscordBlurple,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -343,56 +426,15 @@ fun MessageInput(
     }
 }
 
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatTopBar(
-    currentChannel: String?,
-    onMenuClick: () -> Unit,
-    onUsersClick: () -> Unit
-) {
-    TopAppBar(
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(id = R.drawable.hashtag),
-                    contentDescription = null,
-                    tint = DiscordTextMuted,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = currentChannel?.removePrefix("#") ?: "wybierz kanał",
-                    color = DiscordTextPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        },
-        navigationIcon = {
-            IconButton(onClick = onMenuClick) {
-                Icon(imageVector = Icons.Default.Menu, contentDescription = null, tint = DiscordTextPrimary )
-            }
-        },
-        actions = {
-            if(currentChannel != null) {
-                IconButton(onClick = onUsersClick) {
-                    Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = DiscordTextPrimary )
-                }
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = DiscordDarkerBackground)
-    )
-}
-
-
-
-@Composable
-fun ChannelsDrawer(
+fun LeftDrawer(
     channels: List<Channel>,
-    currentChannel: String?,
+    directMessages: List<String>,
+    currentConversation: ConversationType?,
     currentNickname: String?,
     onChannelClick: (String) -> Unit,
-    onCreateChannel: (String) -> Unit,  // ← NOWY parametr
+    onDMClick: (String) -> Unit,
+    onCreateChannel: (String) -> Unit,
     onRefresh: () -> Unit,
     onDisconnect: () -> Unit
 ) {
@@ -430,9 +472,7 @@ fun ChannelsDrawer(
                             showCreateDialog = false
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DiscordBlurple
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = DiscordBlurple)
                 ) {
                     Text("Dołącz")
                 }
@@ -450,9 +490,7 @@ fun ChannelsDrawer(
         drawerContainerColor = DiscordDarkerBackground,
         modifier = Modifier.width(280.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
             // Header
             Box(
                 modifier = Modifier
@@ -477,69 +515,91 @@ fun ChannelsDrawer(
 
             Divider(color = DiscordDarkestBackground, thickness = 1.dp)
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp, 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "KANAŁY TEKSTOWE",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = DiscordTextMuted,
-                    fontWeight = FontWeight.Bold
-                )
-                Row {
-                    IconButton(
-                        onClick = { showCreateDialog = true },
-                        modifier = Modifier.size(24.dp)
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                // CHANNELS SECTION
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp, 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Utwórz kanał",
-                            tint = DiscordTextMuted,
-                            modifier = Modifier.size(18.dp)
+                        Text(
+                            text = "KANAŁY TEKSTOWE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DiscordTextMuted,
+                            fontWeight = FontWeight.Bold
                         )
-                    }
-                    IconButton(
-                        onClick = onRefresh,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Odśwież",
-                            tint = DiscordTextMuted,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Row {
+                            IconButton(
+                                onClick = { showCreateDialog = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Utwórz kanał",
+                                    tint = DiscordTextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            IconButton(
+                                onClick = onRefresh,
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Odśwież",
+                                    tint = DiscordTextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 }
-            }
 
-            // Channels List
-            LazyColumn(
-                modifier = Modifier.weight(1f)
-            ) {
                 items(channels) { channel ->
-                    ChannelItem(
-                        channel = channel,
-                        isSelected = channel.name == currentChannel,
+                    ConversationItem(
+                        icon = { painterResource(id = R.drawable.hashtag) },
+                        name = channel.name.removePrefix("#"),
+                        isSelected = currentConversation is ConversationType.ChannelConversation &&
+                                currentConversation.channelName == channel.name,
                         onClick = { onChannelClick(channel.name) }
                     )
+                }
+
+
+                if (directMessages.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "WIADOMOŚCI PRYWATNE",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = DiscordTextMuted,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(16.dp, 12.dp)
+                        )
+                    }
+
+                    items(directMessages) { username ->
+                        DMItem(
+                            username = username,
+                            isSelected = currentConversation is ConversationType.DirectMessage &&
+                                    currentConversation.username == username,
+                            onClick = { onDMClick(username) }
+                        )
+                    }
                 }
             }
 
             Divider(color = DiscordDarkestBackground, thickness = 1.dp)
 
-            // Disconnect Button
             TextButton(
                 onClick = onDisconnect,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = DiscordRed
-                )
+                colors = ButtonDefaults.textButtonColors(contentColor = DiscordRed)
             ) {
                 Icon(
                     imageVector = Icons.Default.ExitToApp,
@@ -554,30 +614,29 @@ fun ChannelsDrawer(
 }
 
 @Composable
-fun ChannelItem(
-    channel: Channel,
+fun ConversationItem(
+    icon: @Composable () -> androidx.compose.ui.graphics.painter.Painter,
+    name: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                if (isSelected) DiscordChannelSelected else androidx.compose.ui.graphics.Color.Transparent
-            )
+            .background(if (isSelected) DiscordChannelSelected else androidx.compose.ui.graphics.Color.Transparent)
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
-            painter = painterResource(id = R.drawable.hashtag),
+            painter = icon(),
             contentDescription = null,
-            tint = if(isSelected) DiscordTextPrimary else DiscordTextMuted,
+            tint = if (isSelected) DiscordTextPrimary else DiscordTextMuted,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = channel.name.removePrefix("#"),
+            text = name,
             color = if (isSelected) DiscordTextPrimary else DiscordTextSecondary,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
@@ -585,7 +644,192 @@ fun ChannelItem(
     }
 }
 
+@Composable
+fun DMItem(
+    username: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isSelected) DiscordChannelSelected else androidx.compose.ui.graphics.Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(DiscordBlurple),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = username.firstOrNull()?.uppercase() ?: "?",
+                color = DiscordTextPrimary,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = username,
+            color = if (isSelected) DiscordTextPrimary else DiscordTextSecondary,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun RightDrawer(
+    users: List<String>,
+    currentConversation: ConversationType?,
+    currentNickname: String?,
+    onUserClick: (String) -> Unit,
+    onRefresh: () -> Unit
+) {
+    ModalDrawerSheet(
+        drawerContainerColor = DiscordDarkerBackground,
+        drawerShape = RoundedCornerShape(
+            topStart = 16.dp,
+            bottomStart = 16.dp,
+            topEnd = 0.dp,
+            bottomEnd = 0.dp
+        ),
+        modifier = Modifier.width(240.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(DiscordDarkestBackground)
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "CZŁONKOWIE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = DiscordTextMuted,
+                    fontWeight = FontWeight.Bold
+                )
+                IconButton(
+                    onClick = onRefresh,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Odśwież",
+                        tint = DiscordTextMuted,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Divider(color = DiscordDarkestBackground, thickness = 1.dp)
+
+            if (currentConversation is ConversationType.ChannelConversation) {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    items(users) { username ->
+                        UserItem(
+                            username = username,
+                            isCurrentUser = username == currentNickname,
+                            onClick = {
+                                if (username != currentNickname) {
+                                    onUserClick(username)
+                                }
+                            }
+                        )
+                    }
 
 
+                    if (users.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Brak użytkowników",
+                                    color = DiscordTextMuted,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tylko dla kanałów",
+                        color = DiscordTextMuted,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+        }
+    }
+}
 
-
+@Composable
+fun UserItem(
+    username: String,
+    isCurrentUser: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                enabled = !isCurrentUser,
+                onClick = onClick
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(if (isCurrentUser) DiscordBlurple else DiscordGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = username.firstOrNull()?.uppercase() ?: "?",
+                color = DiscordTextPrimary,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = username,
+                    color = if (isCurrentUser) DiscordBlurple else DiscordTextPrimary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isCurrentUser) FontWeight.Bold else FontWeight.Normal
+                )
+                if (isCurrentUser) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "(JA)",
+                        color = DiscordBlurple,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}

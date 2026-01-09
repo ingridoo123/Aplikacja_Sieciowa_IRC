@@ -43,6 +43,11 @@ class IRCSocketClient @Inject constructor() {
     private val _serverResponses = MutableStateFlow<List<String>>(emptyList())
     val serverResponses: StateFlow<List<String>> = _serverResponses.asStateFlow()
 
+    private val _channelUsers = MutableStateFlow<Map<String, List<String>>>(emptyMap())
+    val channelUsers: StateFlow<Map<String, List<String>>> = _channelUsers.asStateFlow()
+
+    private var lastRequestedChannel: String? = null
+
     suspend fun connect(host: String, port: Int) {
         withContext(Dispatchers.IO) {
             try {
@@ -159,7 +164,19 @@ class IRCSocketClient @Inject constructor() {
                 }
             }
 
-            "ERROR" -> {
+            "USERLIST" -> {
+
+                if (parts.size >= 2) {
+                    val users = parts[1].split(",").filter { it.isNotBlank() }
+                    lastRequestedChannel?.let { channel ->
+                        _channelUsers.value = _channelUsers.value + (channel to users)
+
+                    }
+                }
+            }
+
+
+                "ERROR" -> {
                 val errorMsg = if (parts.size > 1) parts.drop(1).joinToString(" ") else "Unknown error"
                 val systemMsg = Message(
                     channel = "SYSTEM",
@@ -178,6 +195,10 @@ class IRCSocketClient @Inject constructor() {
     suspend fun sendCommand(command: IRCCommand) {
         withContext(Dispatchers.IO) {
             try {
+                if (command is IRCCommand.Users) {
+                    lastRequestedChannel = command.channel
+                }
+
                 writer?.write(command.commandText + "\n")
                 writer?.flush()
             } catch (e: Exception) {

@@ -3,65 +3,108 @@ package com.example.aplikacja_sieciowa.presentation.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aplikacja_sieciowa.data.model.Channel
+import com.example.aplikacja_sieciowa.data.model.ConversationType
 import com.example.aplikacja_sieciowa.data.model.Message
 import com.example.aplikacja_sieciowa.domain.repository.IRCRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val repository: IRCRepository
-): ViewModel() {
+) : ViewModel() {
 
     val channels: StateFlow<List<Channel>> = repository.channels
         .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
     val messages: StateFlow<List<Message>> = repository.messages
         .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
 
     val currentNickname: StateFlow<String?> = repository.currentNickname
         .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
             initialValue = null
         )
 
-    private val _currentChannel = MutableStateFlow<String?>(null)
-    val currentChannel: StateFlow<String?> = _currentChannel.asStateFlow()
+    val channelUsers: StateFlow<Map<String, List<String>>> = repository.channelUsers
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyMap()
+        )
+
+    private val _currentConversation = MutableStateFlow<ConversationType?>(null)
+    val currentConversation: StateFlow<ConversationType?> = _currentConversation.asStateFlow()
 
     private val _messageText = MutableStateFlow("")
     val messageText: StateFlow<String> = _messageText.asStateFlow()
 
-    private val _userListForChannel = MutableStateFlow<List<String>>(emptyList())
-    val userListForChannel: StateFlow<List<String>> = _userListForChannel.asStateFlow()
+    val directMessageConversations: StateFlow<List<String>> = messages
+        .map { allMessages ->
+            allMessages
+                .filter { it.isPrivate }
+                .map { it.sender }
+                .distinct()
+                .filter { it != currentNickname.value }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
-    val messagesForCurrentChannel: StateFlow<List<Message>> = messages.combine(currentChannel) {msgs, channel ->
-        if (channel == null) emptyList()
-        else msgs.filter { it.channel == channel }
+    val messagesForCurrentConversation: StateFlow<List<Message>> = combine(
+        messages,
+        currentConversation,
+        currentNickname
+    ) { msgs, conversation, myNickname ->
+        when (conversation) {
+            is ConversationType.ChannelConversation -> {
+                msgs.filter { it.channel == conversation.channelName }
+            }
+            is ConversationType.DirectMessage -> {
+                msgs.filter { msg ->
+                    msg.isPrivate && (
+                            (msg.sender == conversation.username) ||
+                                    (msg.sender == myNickname && msg.channel == "DM_${conversation.username}")
+                            )
+                }
+            }
+            null -> emptyList()
+        }
     }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
     )
 
+    val currentChannelUsers: StateFlow<List<String>> = combine(
+        currentConversation,
+        channelUsers
+    ) { conversation, usersMap ->
+        if (conversation is ConversationType.ChannelConversation) {
+            usersMap[conversation.channelName] ?: emptyList()
+        } else {
+            emptyList()
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
 
-    init{
+    init {
         viewModelScope.launch {
             repository.requestChannelList()
         }
@@ -72,18 +115,60 @@ class ChatViewModel @Inject constructor(
     }
 
     fun joinChannel(channelName: String) {
-        viewModelScope.launch{
+        viewModelScope.launch {
             repository.joinChannel(channelName)
-            _currentChannel.value = channelName
+            _currentConversation.value = ConversationType.ChannelConversation(channelName)
             repository.requestUsers(channelName)
         }
+    }
+
+    fun openDirectMessage(username: String) {
+        _currentConversation.value = ConversationType.DirectMessage(username)
     }
 
     fun leaveChannel(channelName: String) {
         viewModelScope.launch {
             repository.leaveChannel(channelName)
-            if(_currentChannel.value == channelName) {
-                _currentChannel.value = null
+            val current = _currentConversation.value
+            if (current is ConversationType.ChannelConversation && current.channelName == channelName) {
+                _currentConversation.value = null
+            }
+        }
+    }
+
+    fun sendMessage() {
+        val conversation = _currentConversation.value
+        val text = _messageText.value
+        val nickname = currentNickname.value
+
+        if (text.isNotBlank() && nickname != null) {
+            viewModelScope.launch {
+                when (conversation) {
+                    is ConversationType.ChannelConversation -> {
+                        val localMessage = Message(
+                            channel = conversation.channelName,
+                            sender = nickname,
+                            content = text,
+                            timestamp = System.currentTimeMillis(),
+                            isPrivate = false
+                        )
+                        repository.addLocalMessage(localMessage)
+                        repository.sendMessage(conversation.channelName, text)
+                    }
+                    is ConversationType.DirectMessage -> {
+                        val localMessage = Message(
+                            channel = "DM_${conversation.username}",
+                            sender = nickname,
+                            content = text,
+                            timestamp = System.currentTimeMillis(),
+                            isPrivate = true
+                        )
+                        repository.addLocalMessage(localMessage)
+                        repository.sendPrivateMessage(conversation.username, text)
+                    }
+                    null -> return@launch
+                }
+                _messageText.value = ""
             }
         }
     }
@@ -98,42 +183,17 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    fun sendMessage() {
-        val channel = _currentChannel.value
-        val text = _messageText.value
-        val nickname = currentNickname.value
-
-        if (channel != null && text.isNotBlank() && nickname != null) {
-            viewModelScope.launch {
-                // Dodaj wiadomość lokalnie (optymistyczne UI)
-                val localMessage = Message(
-                    channel = channel,
-                    sender = nickname,
-                    content = text,
-                    timestamp = System.currentTimeMillis(),
-                    isPrivate = false
-                )
-
-                // Dodaj do listy messages bezpośrednio
-                repository.addLocalMessage(localMessage)
-
-                // Wyślij do serwera
-                repository.sendMessage(channel, text)
-                _messageText.value = ""
-            }
-        }
-    }
-
-    fun refreshChannel() {
+    fun refreshChannels() {
         viewModelScope.launch {
             repository.requestChannelList()
         }
     }
 
     fun refreshUsers() {
-        _currentChannel.value?.let { channel ->
+        val conversation = _currentConversation.value
+        if (conversation is ConversationType.ChannelConversation) {
             viewModelScope.launch {
-                repository.requestUsers(channel)
+                repository.requestUsers(conversation.channelName)
             }
         }
     }
@@ -142,17 +202,4 @@ class ChatViewModel @Inject constructor(
         repository.disconnect()
         onDisconnected()
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
 }

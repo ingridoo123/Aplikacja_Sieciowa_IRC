@@ -11,6 +11,7 @@ interface IRCRepository {
     val channels: StateFlow<List<Channel>>
     val currentNickname: StateFlow<String?>
     val serverResponses: StateFlow<List<String>>
+    val channelUsers: StateFlow<Map<String, List<String>>>
 
     suspend fun connect(host: String, port: Int)
     suspend fun setNickname(nickname: String)
