@@ -735,7 +735,7 @@ fun RightDrawer(
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(users) { username ->
                         UserItem(
-                            username = username,
+                            username = username.replaceFirstChar {it.uppercase()},
                             isCurrentUser = username == currentNickname,
                             onClick = {
                                 if (username != currentNickname) {
@@ -801,7 +801,7 @@ fun UserItem(
             modifier = Modifier
                 .size(32.dp)
                 .clip(CircleShape)
-                .background(if (isCurrentUser) DiscordBlurple else DiscordGreen),
+                .background(if (isCurrentUser) DiscordGreen else DiscordBlurple),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -816,7 +816,7 @@ fun UserItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = username,
-                    color = if (isCurrentUser) DiscordBlurple else DiscordTextPrimary,
+                    color = if (isCurrentUser) DiscordGreen else DiscordTextPrimary,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (isCurrentUser) FontWeight.Bold else FontWeight.Normal
                 )
@@ -824,7 +824,7 @@ fun UserItem(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "(JA)",
-                        color = DiscordBlurple,
+                            color = DiscordGreen,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold
                     )

@@ -219,6 +219,11 @@ class IRCSocketClient @Inject constructor() {
         reader = null
         _connectionState.value = ConnectionState.Disconnected
         _currentNickname.value = null
+
+        _messages.value = emptyList()
+        _channels.value = emptyList()
+        _channelUsers.value = emptyMap()
+        _serverResponses.value = emptyList()
     }
 
     fun clearMessages() {

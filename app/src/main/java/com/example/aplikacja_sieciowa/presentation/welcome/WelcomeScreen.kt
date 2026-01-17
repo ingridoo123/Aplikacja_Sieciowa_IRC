@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
@@ -22,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -141,6 +143,7 @@ fun WelcomeScreen(
                         shape = RoundedCornerShape(8.dp)
                     )
 
+
                     Spacer(modifier = Modifier.height(12.dp))
 
                     OutlinedTextField(
@@ -179,6 +182,41 @@ fun WelcomeScreen(
                         )
                     }
 
+                }
+
+                // ========== STAN: Connecting ==========
+                if (connectionState is ConnectionState.Connecting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = DiscordBlurple,
+                        strokeWidth = 4.dp
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Łączenie z serwerem...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DiscordTextSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { viewModel.disconnect() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DiscordRed,
+                            contentColor = DiscordTextPrimary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "Anuluj",
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 if(connectionState is ConnectionState.Connected && currentNickname == null) {
@@ -226,8 +264,15 @@ fun WelcomeScreen(
                         onClick = viewModel::disconnect,
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = null,
+                            tint = DiscordBlurple,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Rozłącz",
+                            text = "Zmień serwer",
                             color = DiscordTextMuted
                         )
                     }
