@@ -21,9 +21,12 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.aplikacja_sieciowa.R
 import com.example.aplikacja_sieciowa.data.model.Channel
+import com.example.aplikacja_sieciowa.data.model.ConnectionState
 import com.example.aplikacja_sieciowa.data.model.ConversationType
 import com.example.aplikacja_sieciowa.data.model.Message
 import com.example.aplikacja_sieciowa.ui.theme.*
@@ -46,6 +49,93 @@ fun ChatScreen(
     val currentNickname by viewModel.currentNickname.collectAsState()
     val directMessages by viewModel.directMessageConversations.collectAsState()
     val currentChannelUsers by viewModel.currentChannelUsers.collectAsState()
+    val connectionState by viewModel.connectionState.collectAsState()
+
+    //gdy serwer się rozłączy
+    if (connectionState is ConnectionState.Error || connectionState is ConnectionState.Disconnected) {
+        val isError = connectionState is ConnectionState.Error
+        val errorMessage = if (isError) {
+            (connectionState as ConnectionState.Error).message
+        } else {
+            "Rozłączono z serwerem"
+        }
+
+        Dialog(
+            onDismissRequest = { },
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false
+            )
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = DiscordDarkerBackground
+                ),
+                shape = RoundedCornerShape(16.dp),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .background(DiscordRed.copy(alpha = 0.2f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = DiscordRed,
+                            modifier = Modifier.size(48.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Text(
+                        text = "Utracono połączenie",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = DiscordTextPrimary,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = DiscordTextSecondary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(24.dp))
+
+                    Button(
+                        onClick = { viewModel.disconnect(onDisconnect) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = DiscordBlurple,
+                            contentColor = DiscordTextPrimary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text(
+                            text = "Wróć do ekranu połączenia",
+                            modifier = Modifier.padding(vertical = 4.dp),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
 
 
     ModalNavigationDrawer(

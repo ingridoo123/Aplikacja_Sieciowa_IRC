@@ -3,6 +3,7 @@ package com.example.aplikacja_sieciowa.presentation.chat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.aplikacja_sieciowa.data.model.Channel
+import com.example.aplikacja_sieciowa.data.model.ConnectionState
 import com.example.aplikacja_sieciowa.data.model.ConversationType
 import com.example.aplikacja_sieciowa.data.model.Message
 import com.example.aplikacja_sieciowa.domain.repository.IRCRepository
@@ -42,6 +43,13 @@ class ChatViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyMap()
+        )
+
+    val connectionState: StateFlow<ConnectionState> = repository.connectionState
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = ConnectionState.Connected
         )
 
     private val _currentConversation = MutableStateFlow<ConversationType?>(null)
